@@ -33,33 +33,28 @@ function checkPort(ip, port, timeout = 200) {
   });
 }
 
-async function scanBatch(ip, ports) {
+async function scanAll(ip) {
+  const open = [];
   const batchSize = 200;
-  let results = [];
 
-  for (let i = 0; i < ports.length; i += batchSize) {
-    const batch = ports.slice(i, i + batchSize);
-    const r = await Promise.all(batch.map((p) => checkPort(ip, p)));
-    results.push(...r);
+  for (let start = 1; start <= 65535; start += batchSize) {
+    const batch = [];
+    for (let p = start; p < start + batchSize && p <= 65535; p++) {
+      batch.push(p);
+    }
+
+    const results = await Promise.all(batch.map((p) => checkPort(ip, p)));
+    open.push(...results.filter((p) => p !== null));
   }
 
-  return results.filter((p) => p !== null);
+  return open;
 }
 
 app.get("/scan", async (req, res) => {
   const ip = req.query.ip;
-  const start = parseInt(req.query.start);
-  const end = parseInt(req.query.end);
+  if (!ip) return res.json({ error: "Missing IP" });
 
-  if (!ip || isNaN(start) || isNaN(end)) {
-    return res.status(400).json({ error: "Invalid params" });
-  }
-
-  const ports = [];
-  for (let p = start; p <= end; p++) ports.push(p);
-
-  const openPorts = await scanBatch(ip, ports);
-
+  const openPorts = await scanAll(ip);
   res.json({ openPorts });
 });
 
